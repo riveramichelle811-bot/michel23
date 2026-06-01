@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telemetría Automotriz IoT</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; background-color: #121214; color: #fff; padding-top: 30px; }
+        .container { max-width: 450px; margin: 0 auto; background: #1a1a24; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .btn { padding: 12px; font-size: 16px; margin: 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 40%; }
+        .btn-on { background-color: #2ecc71; color: white; }
+        .btn-off { background-color: #e74c3c; color: white; }
+        #status { margin-top: 15px; font-size: 13px; color: #f1c40f; }
+        
+        /* Estilos del Sensor Automotriz */
+        .sensor-section { margin-top: 30px; background: #242433; padding: 20px; border-radius: 10px; border: 1px solid #333; }
+        .progress-bar-container { background-color: #444; border-radius: 10px; width: 100%; height: 25px; margin-top: 15px; overflow: hidden; }
+        .progress-bar { background-color: #3498db; width: 0%; height: 100%; transition: width 0.2s ease; }
+        #valor-sensor { font-size: 28px; font-weight: bold; color: #3498db; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Scanner IoT Automotriz</h2>
+        <p style="color: #aaa;">Monitoreo y Actuadores en Tiempo Real</p>
+        <hr style="border-color: #333;">
+        
+        <h3>Actuador: Relay de Prueba</h3>
+        <button class="btn btn-on" onclick="publicar('ON')">ENCENDER</button>
+        <button class="btn btn-off" onclick="publicar('OFF')">APAGAR</button>
+        
+        <div class="sensor-section">
+            <h3>Sensor: Posición de Acelerador (TPS)</h3>
+            <div id="valor-sensor">0%</div>
+            <div class="progress-bar-container">
+                <div id="barra" class="progress-bar"></div>
+            </div>
+        </div>
+        
+        <div id="status">Conectando al servidor...</div>
+    </div>
+
+    <script>
+        // Configuración Segura para GitHub Pages
+        const broker = "broker.hivemq.com";
+        const puerto = 8884; 
+        const topic_led = "michel_IOT_ISA_2123/esp32/led"; 
+        const topic_pot = "michel_IOT_ISA_2123/esp32/pot"; 
+        const clientId = "WebClientAutomotriz-" + Math.random().toString(16).substr(2, 8);
+
+        const client = new Paho.MQTT.Client(broker, puerto, clientId);
+
+        client.onConnectionLost = (resp) => {
+            document.getElementById("status").innerText = "Conexión perdida: " + resp.errorMessage;
+            document.getElementById("status").style.color = "#e74c3c";
+        };
+
+        // Esta función se activa automáticamente cuando el ESP32 publica datos
+        client.onMessageArrived = (message) => {
+            if (message.destinationName === topic_pot) {
+                const valor = message.payloadString;
+                // Actualizar el texto de la pantalla
+                document.getElementById("valor-sensor").innerText = valor + "%";
+                // Actualizar gráficamente la barra de progreso
+                document.getElementById("barra").style.width = valor + "%";
+            }
+        };
+
+        client.connect({
+            useSSL: true,
+            onSuccess: () => {
+                document.getElementById("status").innerText = "● Sistema Online - Recibiendo Telemetría";
+                document.getElementById("status").style.color = "#2ecc71";
+                // CRÍTICO: Decirle al broker que queremos escuchar lo que el ESP32 mande
+                client.subscribe(topic_pot);
+            },
+            onFailure: (err) => {
+                document.getElementById("status").innerText = "Error: " + err.errorMessage;
+                document.getElementById("status").style.color = "#e74c3c";
+            }
+        });
+
+        function publicar(estado) {
+            if (client.isConnected()) {
+                const message = new Paho.MQTT.Message(estado);
+                message.destinationName = topic_led;
+                client.send(message);
+            }
+        }
+    </script>
+</body>
+</html>
